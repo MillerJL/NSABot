@@ -1,0 +1,5 @@
+#config
+.env
+.ftpconfig
+node_modules
+examples/*
