@@ -3,3 +3,4 @@
 .ftpconfig
 node_modules
 examples/*
+logs/*
