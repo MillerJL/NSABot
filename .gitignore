@@ -2,5 +2,5 @@
 .env
 .ftpconfig
 node_modules
-examples/*
-logs/*
+examples
+logs

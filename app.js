@@ -1,30 +1,36 @@
 require('dotenv').config();
 
-var bodyParser = require('body-parser');
-var pgp = require('pg-promise')();
+var bodyParser = require('body-parser')
+  , rp = require('request-promise')
+  ;
 
-var RTM_EVENTS = require('@slack/client').RTM_EVENTS;
-var RTM_CLIENT_EVENTS = require('@slack/client').CLIENT_EVENTS.RTM;
+var RTM_EVENTS = require('@slack/client').RTM_EVENTS
+  , RTM_CLIENT_EVENTS = require('@slack/client').CLIENT_EVENTS.RTM
+  ;
 
-var RtmClient = require('@slack/client').RtmClient;
-var token = process.env.SLACK_TOKEN || '';
-var rtm = new RtmClient(token, {logLevel: 'debug'});
+var RtmClient = require('@slack/client').RtmClient
+  , rtm = new RtmClient(process.env.SLACK_TOKEN, {logLevel: 'error'})
+  ;
 
-var db = pgp(process.env.DB_CONSTRING);
+rtm.start()
 
-rtm.start();
+rtm.on(RTM_EVENTS.MESSAGE, (message) => {
+  var options = {
+    method: "POST",
+    uri: process.env.API_HOST,
+    body: message,
+    json: true
+  }
 
-rtm.on(RTM_EVENTS.MESSAGE, function (message) {
-  db.none("INSERT INTO messages(message_data) values($1)", [message])
-    .catch(function (error) {
-        console(error);
-    });
+  options.method = (message.subtype == 'message_changed') ? "PUT" : "POST";
+
+  rp(options)
+    .then((parsedBody) => { console.log(parsedBody) })
+    .catch((err) => { console.log(err) })
 });
 
 rtm.on(RTM_CLIENT_EVENTS.RTM_CONNECTION_OPENED, function () {
-  rtm.sendMessage('Connected', 'C19CDQ789', function messageSent() {
-
-  });
+  rtm.sendMessage('Connected', process.env.NSABOT_CHANNEL, function messageSent() {});
 });
 
 /*  Move all this over to some cool framework later  */
