@@ -1,84 +1,34 @@
 # NSABot
+Bot that sits in your chat and logs everything you say
+Used with [NSABot_api](https://github.com/MillerJL/NSABot_api)
+
+node_slack_sdk(@slack/client)
+
+## Important
+Do NOT share or publish sensitive info in your .env
 
 ## Installation
+* Get slackbot token
+* Create channel for NSABot to log certain events
+  * e.g. connected, certain errors, commands, etc.
 * Copy .env-sample to .env and modify contents to match necessary environment variables
+* npm install
 * Use with [NSABot_api](https://github.com/MillerJL/NSABot_api)
 
-## Future Plans
-* Integrate better with [NSABot_api](https://github.com/MillerJL/NSABot_api)
-* Completely redo code utilizing some framework
+## Usage
+* Just connect and leave it alone
 
-### Add many of the following events (at least bolded)
-* **ACCOUNTS_CHANGED**
-* BOT_ADDED
-* BOT_CHANGED
-* **CHANNEL_ARCHIVE**
-* **CHANNEL_CREATED**
-* **CHANNEL_DELETED**
-* CHANNEL_HISTORY_CHANGED
-* **CHANNEL_JOINED**
-* **CHANNEL_LEFT**
-* CHANNEL_MARKED
-* **CHANNEL_RENAME**
-* **CHANNEL_UNARCHIVE**
-* COMMANDS_CHANGED
-* DND_UPDATED
-* DND_UPDATED_USER
-* EMAIL_DOMAIN_CHANGED
-* **EMOJI_CHANGED**
-* **FILE_CHANGE**
-* **FILE_COMMENT_ADDED**
-* **FILE_COMMENT_DELETED**
-* **FILE_COMMENT_EDITED**
-* **FILE_CREATED**
-* **FILE_DELETED**
-* FILE_PRIVATE
-* FILE_PUBLIC
-* **FILE_SHARED**
-* **FILE_UNSHARED**
-* GROUP_ARCHIVE
-* GROUP_CLOSE
-* GROUP_HISTORY_CHANGED
-* GROUP_JOINED
-* GROUP_LEFT
-* GROUP_MARKED
-* GROUP_OPEN
-* GROUP_RENAME
-* GROUP_UNARCHIVE
-* HELLO
-* IM_CLOSE
-* IM_CREATED
-* IM_HISTORY_CHANGED
-* IM_MARKED
-* IM_OPEN
-* MANUAL_PRESENCE_CHANGE
-* ~~**MESSAGE**~~
-  * Improve edited message history
-* MPIM_CLOSE
-* MPIM_HISTORY_CHANGED
-* MPIM_JOINED
-* MPIM_OPEN
-* **PIN_ADDED**
-* **PIN_REMOVED**
-* PREF_CHANGE
-* PRESENCE_CHANGE
-* **REACTION_ADDED**
-* **REACTION_REMOVED**
-* RECONNECT_URL
-* **STAR_ADDED**
-* **STAR_REMOVED**
-* SUBTEAM_CREATED
-* SUBTEAM_SELF_ADDED
-* SUBTEAM_SELF_REMOVED
-* SUBTEAM_UPDATED
-* TEAM_DOMAIN_CHANGE
-* TEAM_JOIN
-* TEAM_MIGRATION_STARTED
-* TEAM_PLAN_CHANGE
-* TEAM_PREF_CHANGE
-* TEAM_PROFILE_CHANGE
-* TEAM_PROFILE_DELETE
-* TEAM_PROFILE_REORDER
-* TEAM_RENAME
-* **USER_CHANGE**
-* USER_TYPING
+## Future Plans
+- [x] Create files collection
+- [x] Handle reactions being added.
+- [ ] Pinned items
+- [x] Switch message :id to ts based
+* /messages/:ts/channels/:c_id seems to be best way as ts is only unique to channel
+- [ ] Create some way to send message to NSABot channel if connection fails
+* Couldn't be to slack, but maybe an email if it doesn't happen too often
+  * Maybe put on a timer and if connection is lost for over x amount of time send email
+- [ ] Script to get all group info from slack storage when bot first activated
+* e.g. last ~20k messages w/ reactions, channels, users, files, pinned items, etc.
+* This would be called when first activating bot
+- [ ] Create some way to retroactively get events if connection fails
+- [ ] Completely redo code utilizing some framework or just use Typescript
