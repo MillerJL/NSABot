@@ -1,17 +1,23 @@
 {
   "name": "nsabot",
   "version": "0.1.0",
-  "description": "Watches stuff",
-  "main": "app.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MillerJL/NSABot"
   },
-  "author": "millerjl",
+  "description": "Watches your slack team",
+  "main": "app.js",
+  "keywords": [
+    "babel",
+    "slack"
+  ],
+  "author": "John Miller",
   "license": "MIT",
   "dependencies": {
     "@slack/client": "^3.1.0",
     "body-parser": "^1.15.1",
     "clone-deep": "^0.2.4",
+    "config": "^1.21.0",
     "dotenv": "^2.0.0",
     "pg-promise": "^4.3.1",
     "request": "^2.72.0",

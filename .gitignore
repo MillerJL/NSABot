@@ -6,3 +6,4 @@ examples
 logs
 useful_shit.js
 rethinkdb_data
+config/default.json

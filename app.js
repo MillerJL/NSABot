@@ -1,203 +1,287 @@
-// Todo
-// Change Qu to "SetURI or something"
-
-require('dotenv').config()
-
-var bodyParser = require('body-parser')
-var rp = require('request-promise')
-
-var RtmClient = require('@slack/client').RtmClient
-var RTM_EVENTS = require('@slack/client').RTM_EVENTS
-var RTM_SUBTYPES = require('@slack/client').RTM_MESSAGE_SUBTYPES
-var RTM_CLIENT_EVENTS = require('@slack/client').CLIENT_EVENTS.RTM
-var MemoryDataStore = require('@slack/client').MemoryDataStore
-var cloneDeep = require('clone-deep')
-
-var WebClient = require('@slack/client').WebClient
-
-var token = process.env.SLACK_TOKEN || ''
-var web = new WebClient(token)
-
-var rtm = new RtmClient(process.env.SLACK_TOKEN, {
+import config from 'config'
+import bodyParser from 'body-parser'
+import rp from 'request-promise'
+import slackClient from '@slack/client'
+import cloneDeep from 'clone-deep'
+import { RtmClient, RTM_EVENTS, RTM_MESSAGE_SUBTYPES, CLIENT_EVENTS, MemoryDataStore, WebClient } from '@slack/client'
+const RTM_CLIENT_EVENTS = CLIENT_EVENTS.RTM
+const token = config.get('slackToken') || ''
+const web = new WebClient(token)
+const rtm = new RtmClient(token, {
   logLevel: 'error',
   dataStore: new MemoryDataStore()
 })
 
 class Request {
-  constructor (method, uri, body) {
-    this.method = method || null
-    this.uri = process.env.API_HOST + ((uri != null) ? this.setUri(uri) : '')
-    this.body = body || {}
+  constructor (options = {}) {
+    const {
+      method = null,
+      uri = config.get('apiHost'),
+      body = {}
+    } = options
+
+    this.method = method
+    this.uri = config.get('apiHost') + ((uri != null) ? this.setUri(uri) : '')
+    this.body = body
     this.json = true
   }
 
-  POST (qu, body) {
+  POST (options = {}) {
+    const {
+      uri = this.uri,
+      body = this.body
+    } = options
+
+    if(this.uri !== uri)
+      this.uri += this.setUri(uri)
+    this.body = body
     this.method = 'POST'
-    this.uri += this.setUri(qu)
-    this.body = body
 
-    return this
+    return rp(this)
   }
 
-  PATCH (qu, body) {
+  PATCH (options = {}) {
+    const {
+      uri = this.uri,
+      body = this.body
+    } = options
+
+    if(this.uri !== uri)
+      this.uri += this.setUri(uri)
+    this.body = body
     this.method = 'PATCH'
-    this.uri += this.setUri(qu)
-    this.body = body
 
-    return this
+    return rp(this)
   }
 
-  PUT (qu, body) {
+  PUT (options = {}) {
+    const {
+      uri = this.uri,
+      body = this.body
+    } = options
+
+    if(this.uri !== uri)
+      this.uri += this.setUri(uri)
+    this.body = body
     this.method = 'PUT'
-    this.uri += this.setUri(qu)
-    this.body = (body) || this.body
 
-    return this
+    return rp(this)
   }
 
-  DELETE (qu, body) {
+  DELETE (options = {}) {
+    const {
+      uri = this.uri,
+      body = this.body
+    } = options
+
+    if(this.uri !== uri)
+      this.uri += this.setUri(uri)
+    this.body = body
     this.method = 'DELETE'
-    this.uri += this.setUri(qu)
-    this.body = body
 
-    return this
+    return rp(this)
   }
 
-  GET (qu, body) {
+  GET (options = {}) {
+    const {
+      uri = this.uri,
+      body = this.body
+    } = options
+
+    if(this.uri !== uri)
+      this.uri += this.setUri(uri)
+    this.body = body
     this.method = 'GET'
-    this.uri += this.setUri(qu)
-    this.body = body
 
-    return this
+    return rp(this)
   }
 
-  setUri (qu) {
-    var newUri = ''
-    var paths = { msg: 'messages', chnl: 'channels', user: 'users',
-                  rct: 'reactions', fil: 'files' }
+  setUri (uri) {
+    let newUri = ''
+    const paths = { msg: 'messages', chnl: 'channels', user: 'users',
+                    rct: 'reactions', fil: 'files' }
 
-    for (var k in qu) {
-      if (qu.hasOwnProperty(k) && typeof paths[k] !== 'undefined')
-        newUri += '/' + paths[k] + ((qu[k]) ? '/' + qu[k] : '')
+    for(let k in uri) {
+      if (uri.hasOwnProperty(k) && typeof paths[k] !== 'undefined')
+        newUri += '/' + paths[k] + ((uri[k]) ? '/' + uri[k] : '')
     }
     return newUri
   }
 }
 
 function fileShare (msg) {
-  var body = msg.file
+  const body = msg.file
   body.ts = msg.ts
 
   return rp(new Request('POST', { fil: null }, body))
 }
 
-rtm.start()
-
 /**
- * Message Received
+ * Performs request based off message subtype. Also inserts message if necessary.
  */
-rtm.on(RTM_EVENTS.MESSAGE, (msg) => {
-  console.log("MESSAGE")
-  console.log(msg)
+function messageSubTypes (args = {}) {
+  const {
+    subtype = 'default',
+    body
+  } = args
 
-  var api_host = process.env.API_HOST
-  var stor_msg = true
-  var requests = []
-  var req = new Request()
+  const requests = []
+  let store_message = true
 
-  if('subtype' in msg) {
-    switch(msg.subtype) {
-      case 'message_changed':
-        // This is fucking dumb, but for some reason either slack or the api wrapper I'm using
-        // has a file reaction add event cause a message_changed message event ONLY for files.
-        if(typeof msg.message.subtype === 'undefined')
-          requests.push(rp(req.PATCH({ msg: msg.message.ts, chnl: msg.channel }, {
-            'message_history': msg.previous_message,
-            'message': {
-              text: msg.message.text,
-              edited: msg.message.edited
+  const subtypes = {
+    'message_changed': function () {
+      store_message = false
+
+      if(typeof body.message.subtype === 'undefined')
+        return new Request({
+          uri: { msg: body.message.ts, chnl: body.channel },
+          body: {
+            message_history: body.previous_message,
+            message: {
+              text: body.message.text,
+              edited: body.message.edited
             }
-          })))
-        stor_msg = false
-        break
-      case 'message_deleted':
-        // requests.push(rp(req.DELETE({ msg: msg.msg, chnl: msg.channel }, msg)))
-        // stor_msg = false
-        break
-      case 'channel_join':
-        var options = req.POST({ chnl: msg.channel, usr: msg.user }, msg)
-        requests.push(rp(options))
-        break
-      case 'channel_leave':
-      // requests.push(rp(req.DELETE({ chnl: msg.channel, usr: msg.user }, msg)))
-        break
-      case 'channel_topic':
-        // requests.push(rp(req.PATCH({ chnl: msg.channel }, { topic: msg.topic })))
-        break
-      case 'channel_purpose':
-        // requests.push(rp(req.PATCH({ chnl: msg.channel }, { purpose: msg.purpose })))
-        break
-      case 'channel_rename':
-        break
-      case 'file_share':
-        requests.push(fileShare(cloneDeep(msg)))
-        break
+          }
+        }).PATCH()
+    },
+    'message_deleted': function () {
+      store_message = false
+      return
+    },
+    'channel_join': function () {
+      return
+    },
+    'channel_leave': function () {
+      return
+    },
+    'channel_topic':  function () {
+      return new Request({
+        uri: { chnl: body.channel },
+        body: {
+          topic: {
+            value: body.topic,
+            creator: body.user,
+            last_set: parseInt(body.ts.substring(0, body.ts.indexOf('.')))
+          }
+        }
+      }).PATCH()
+    },
+    'channel_purpose':  function () {
+      return new Request({
+        uri: { chnl: msg.channel },
+        body: {
+          purpose: {
+            value: msg.purpose,
+            creator: msg.user,
+            last_set: parseInt(msg.ts.substring(0, msg.ts.indexOf('.')))
+          }
+        }
+      }).PATCH()
+    },
+    'channel_rename':  function () {
+      return
+    },
+    'file_share':  function () {
+      return
+    },
+    'default': function () {
+      let formattedMessage = body
+      formattedMessage.message_history = []
+
+      return new Request({
+        uri: { msg: null },
+        body: formattedMessage,
+      }).POST()
     }
   }
 
-  if(stor_msg === true) {
-    msg.message_history = []
-    requests.push(rp(new Request('POST', { msg: null }, msg)))
-  }
+  requests.push(subtypes[subtype]())
+  if(store_message && subtype !== 'default')
+    requests.push(subtypes['default']())
 
-  // Bad fix later
-  if (typeof requests[0] !== 'undefined')
-    Promise.all(requests)
-      .then( (res) => { console.log('NSABot_api: ', res) })
-      .catch( (err) => { console.log('NSABot_api: ', err) })
+  return requests
+}
+
+
+rtm.start()
+
+/**
+ * Message Received. Possible subtype event as well.
+ */
+rtm.on(RTM_EVENTS.MESSAGE, async (msg) => {
+  console.log("MESSAGE", msg)
+
+  try {
+    const result = await Promise.all(messageSubTypes({
+      subtype: msg.subtype || 'default',
+      body: msg
+    }))
+
+    console.log(result);
+  } catch (err) {
+    console.log('NSABOT_api: ', err);
+  }
 })
 
 /**
  * reaction added
  */
-rtm.on(RTM_EVENTS.REACTION_ADDED, (msg) => {
-  var options = new Request('POST', null, {
-    user: msg.user,
-    reaction: msg.reaction,
-    ts: msg.event_ts,
-    item_user: msg.item_user
+rtm.on(RTM_EVENTS.REACTION_ADDED, async (msg) => {
+  const request = new Request({
+    body: {
+      user: msg.user,
+      reaction: msg.reaction,
+      ts: msg.event_ts,
+      item_user: msg.item_user
+    }
   })
 
-  if(msg.item.type === 'message')
-    options.uri += options.setUri({ rct: null, msg: msg.item.ts, chnl: msg.item.channel })
-  else if(msg.item.type === 'file')
-    options.uri += options.setUri({ rct: null, fil: msg.item.file })
+  try {
+    let result = {}
 
-  if(['file', 'message'].indexOf(msg.item.type) > -1)
-    rp(options)
-      .then( (parsedBody) => { console.log(parsedBody) })
-      .catch( (err) => { console.log('Error NSABot_api: ', err) })
+    if(msg.item.type === 'message')
+      result = await request.PATCH({
+        uri: { rct: null, msg: msg.item.ts, chnl: msg.item.channel },
+      })
+    else if(msg.item.type === 'file')
+      result = await request.PATCH({
+        uri: { rct: null, fil: msg.item.file }
+      })
+
+    console.log(result)
+  } catch(err) {
+    console.log('NSABot_api: ', err)
+  }
 })
 
 /**
  * reaction removed
  */
-rtm.on(RTM_EVENTS.REACTION_REMOVED, (msg) => {
-  var options = new Request('DELETE', null, {
-    user: msg.user,
-    reaction: msg.reaction,
-    ts: msg.event_ts
+rtm.on(RTM_EVENTS.REACTION_REMOVED, async (msg) => {
+  const request = new Request({
+    body: {
+      user: msg.user,
+      reaction: msg.reaction,
+      ts: msg.event_ts
+    }
   })
 
-  if(msg.item.type === 'message')
-    options.uri += options.setUri({ rct: null, msg: msg.item.ts, chnl: msg.item.channel })
-  else if(msg.item.type === 'file')
-    options.uri += options.setUri({ rct: null, fil: msg.item.file })
+  try {
+    let result = {}
 
-  if(['file', 'message'].indexOf(msg.item.type) > -1)
-    rp(options)
-      .then( (parsedBody) => { console.log(parsedBody) })
-      .catch( (err) => { console.log('Error NSABot_api: ', err) })
+    if(msg.item.type === 'message')
+      result = await request.DELETE({
+        uri: { rct: null, msg: msg.item.ts, chnl: msg.item.channel }
+      })
+    else if(msg.item.type === 'file')
+      result = await request.DELETE({
+        uri: { rct: null, fil: msg.item.file }
+      })
+
+    console.log(result)
+  } catch(err) {
+    console.log('Error NSABot_api: ', err)
+  }
 })
 
 /**
@@ -239,15 +323,19 @@ rtm.on(RTM_EVENTS.PIN_REMOVED, (pin_message) => {
 /**
  *  Channel Created
  */
-rtm.on(RTM_EVENTS.CHANNEL_CREATED, (channel) => {
+rtm.on(RTM_EVENTS.CHANNEL_CREATED, async (channel) => {
   console.log('CHANNEL_CREATED')
   console.log(channel)
+  const channelMessage = channel.channel
+  channelMessage.event_ts = channel.event_ts
 
-  // var options = formatOptions('POST', 'channels', channel)
+  const options = new Request('POST', { chnl: null }, channelMessage)
 
-  // rp(options)
-  //   .then((parsedBody) => { console.log(parsedBody) })
-  //   .catch((err) => { console.log('Error NSABot_api: ', err) })
+  const result = await
+
+  rp(options)
+    .then( (parsedBody) => { console.log(parsedBody) })
+    .catch( (err) => { console.log('Error NSABot_api: ', err) })
 })
 
 /**
@@ -256,11 +344,12 @@ rtm.on(RTM_EVENTS.CHANNEL_CREATED, (channel) => {
 rtm.on(RTM_EVENTS.CHANNEL_JOINED, (channel) => {
   console.log('CHANNEL_JOINED')
   console.log(channel)
-  // var options = formatOptions('DELETE', 'channels', channel)
-  //
-  // rp(options)
-  //   .then((parsedBody) => { console.log(parsedBody) })
-  //   .catch((err) => { console.log('Error NSABot_api: ', err) })
+
+  const options = new Request('PUT', { chnl: channel.channel.id }, channel.channel)
+
+  rp(options)
+    .then( (parsedBody) => { console.log(parsedBody) })
+    .catch( (err) => { console.log('Error NSABot_api: ', err) })
 })
 
 /**
@@ -426,7 +515,7 @@ rtm.on(RTM_EVENTS.USER_CHANGE, (user) => {
  * On Connect Send Message to slackboi channel
  */
 rtm.on(RTM_CLIENT_EVENTS.RTM_CONNECTION_OPENED, function () {
-  rtm.sendMessage('Connected', process.env.NSABOT_CHANNEL, function messageSent() {})
+  rtm.sendMessage('Connected', config.get('logChannelId'), function messageSent() {})
 })
 
 /*  Move all this over to some cool framework later  */
