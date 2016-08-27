@@ -5,13 +5,13 @@ Used with [NSABot_api](https://github.com/MillerJL/NSABot_api)
 node_slack_sdk(@slack/client)
 
 ## Important
-Do NOT share or publish sensitive info in your .env
+Do NOT share or publish sensitive info in your config/default.json
 
 ## Installation
 * Get slackbot token
 * Create channel for NSABot to log certain events
   * e.g. connected, certain errors, commands, etc.
-* Copy .env-sample to .env and modify contents to match necessary environment variables
+* Copy config/default-sample.json to config/default.json and modify contents to match necessary environment variables
 * npm install
 * Use with [NSABot_api](https://github.com/MillerJL/NSABot_api)
 
@@ -31,4 +31,3 @@ Do NOT share or publish sensitive info in your .env
 * e.g. last ~20k messages w/ reactions, channels, users, files, pinned items, etc.
 * This would be called when first activating bot
 - [ ] Create some way to retroactively get events if connection fails
-- [ ] Completely redo code utilizing some framework or just use Typescript
