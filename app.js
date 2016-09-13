@@ -109,13 +109,6 @@ class Request {
   }
 }
 
-function fileShare (msg) {
-  const body = msg.file
-  body.ts = msg.ts
-
-  return rp(new Request('POST', { fil: null }, body))
-}
-
 /**
  * Performs request based off message subtype. Also inserts message if necessary.
  */
@@ -124,6 +117,8 @@ function messageSubTypes (args = {}) {
     subtype = 'default',
     body
   } = args
+
+  console.log(subtype);
 
   const requests = []
   let store_message = true
@@ -149,12 +144,18 @@ function messageSubTypes (args = {}) {
       return
     },
     'channel_join': function () {
-      return
+      return new Request({
+        uri: { chnl: body.channel, user: body.user },
+        body: {}
+      }).PATCH()
     },
     'channel_leave': function () {
-      return
+      return new Request({
+        uri: { chnl: body.channel, user: body.user },
+        body: {}
+      }).DELETE()
     },
-    'channel_topic':  function () {
+    'channel_topic': function () {
       return new Request({
         uri: { chnl: body.channel },
         body: {
@@ -166,23 +167,30 @@ function messageSubTypes (args = {}) {
         }
       }).PATCH()
     },
-    'channel_purpose':  function () {
+    'channel_purpose': function () {
       return new Request({
-        uri: { chnl: msg.channel },
+        uri: { chnl: body.channel },
         body: {
           purpose: {
-            value: msg.purpose,
-            creator: msg.user,
-            last_set: parseInt(msg.ts.substring(0, msg.ts.indexOf('.')))
+            value: body.purpose,
+            creator: body.user,
+            last_set: parseInt(body.ts.substring(0, body.ts.indexOf('.')))
           }
         }
       }).PATCH()
     },
-    'channel_rename':  function () {
+    'channel_name': function () {
+      // Probably not really necessary
       return
     },
-    'file_share':  function () {
-      return
+    'file_share': function () {
+      const clonebody = cloneDeep(body.file)
+      clonebody.ts = body.ts
+
+      return new Request({
+        uri: { fil: null },
+        body: clonebody
+      }).POST()
     },
     'default': function () {
       let formattedMessage = body
@@ -227,6 +235,9 @@ rtm.on(RTM_EVENTS.MESSAGE, async (msg) => {
  * reaction added
  */
 rtm.on(RTM_EVENTS.REACTION_ADDED, async (msg) => {
+  console.log('REACTION_ADDED');
+  console.log(msg);
+
   const request = new Request({
     body: {
       user: msg.user,
@@ -258,6 +269,9 @@ rtm.on(RTM_EVENTS.REACTION_ADDED, async (msg) => {
  * reaction removed
  */
 rtm.on(RTM_EVENTS.REACTION_REMOVED, async (msg) => {
+  console.log('REACTION_REMOVED');
+  console.log(msg);
+
   const request = new Request({
     body: {
       user: msg.user,
@@ -329,27 +343,39 @@ rtm.on(RTM_EVENTS.CHANNEL_CREATED, async (channel) => {
   const channelMessage = channel.channel
   channelMessage.event_ts = channel.event_ts
 
-  const options = new Request('POST', { chnl: null }, channelMessage)
+  try {
+    const result = await new Request({
+      uri: { chnl: null },
+      body: channelMessage
+    }).POST()
 
-  const result = await
-
-  rp(options)
-    .then( (parsedBody) => { console.log(parsedBody) })
-    .catch( (err) => { console.log('Error NSABot_api: ', err) })
+    console.log(result)
+  } catch (err) {
+    console.log('Error NSABot_api: ', err)
+  }
 })
 
 /**
  * NSABot joins channel
  */
-rtm.on(RTM_EVENTS.CHANNEL_JOINED, (channel) => {
+rtm.on(RTM_EVENTS.CHANNEL_JOINED, async (channel) => {
   console.log('CHANNEL_JOINED')
   console.log(channel)
 
-  const options = new Request('PUT', { chnl: channel.channel.id }, channel.channel)
+  // Send update channel request. Will update or create channel nsabot joins
+  // Get all available messages in channel
+  // "channel" should have all channel info.
 
-  rp(options)
-    .then( (parsedBody) => { console.log(parsedBody) })
-    .catch( (err) => { console.log('Error NSABot_api: ', err) })
+  try {
+    const result = await new Request({
+      uri: { chnl: channel.channel.id },
+      body: channel.channel
+    }).PUT()
+
+    console.log(result)
+  } catch (err) {
+    console.log(err)
+  }
 })
 
 /**
@@ -414,17 +440,22 @@ rtm.on(RTM_EVENTS.CHANNEL_DELETED, (channel) => {
 /**
  * Channel Rename
  */
-rtm.on(RTM_EVENTS.CHANNEL_RENAME, (channel) => {
+rtm.on(RTM_EVENTS.CHANNEL_RENAME, async (channel) => {
   console.log('CHANNEL_RENAME')
   console.log(channel)
-  // var channel_data = {
-  //   'name': channel.channel.name
-  // }
-  // var options = formatOptions('PATCH', `channels/${channel.channel}`, channel_data)
 
-  // rp(options)
-  // .then((parsedBody) => { console.log(parsedBody) })
-  // .catch((err) => { console.log(err) })
+  try {
+    const result = await new Request({
+      uri: { chnl: channel.channel.id },
+      body: {
+        name: channel.channel.name
+      }
+    }).PATCH()
+
+    console.log(result)
+  } catch (err) {
+    console.log(err)
+  }
 })
 
 /**
